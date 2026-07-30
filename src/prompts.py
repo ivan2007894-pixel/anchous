@@ -24,6 +24,8 @@ CAPTCHA_PROMPTS: dict[str, dict[str, list[str]]] = {
             "a photo of a truck",
             "a photo of a street without a bus",
             "a photo of a building",
+            "a shadow on the ground",
+            "a shadow of a vehicle on pavement",
         ],
     },
     "car": {
@@ -38,19 +40,28 @@ CAPTCHA_PROMPTS: dict[str, dict[str, list[str]]] = {
             "a photo of a truck",
             "a photo of a bicycle",
             "a photo of a street",
+            "a shadow on the ground",
+            "a shadow of a vehicle on pavement",
         ],
     },
     "motorcycle": {
         "positive": [
-            "a photo of a motorcycle",
-            "a photo of a motorbike",
-            "a motorcycle on the road",
-            "a photo of a scooter",
+            "a clear photo of a motorcycle",
+            "a photo of a motorbike parked or riding",
+            "a motorcycle with visible wheels and handlebars",
+            "a photo of a scooter or moped",
+            "a person riding a motorcycle",
         ],
         "negative": [
             "a photo of a bicycle",
             "a photo of a car",
-            "a photo of a street",
+            "a photo of a street without vehicles",
+            "a shadow on the ground",
+            "a shadow of a motorcycle on pavement",
+            "a dark silhouette on the road",
+            "a photo of pavement or asphalt",
+            "a photo of an empty road surface",
+            "a reflection on a surface",
         ],
     },
     "bicycle": {
@@ -63,6 +74,8 @@ CAPTCHA_PROMPTS: dict[str, dict[str, list[str]]] = {
             "a photo of a motorcycle",
             "a photo of a car",
             "a photo of a person walking",
+            "a shadow on the ground",
+            "a shadow of a bicycle on pavement",
         ],
     },
     "truck": {
@@ -76,6 +89,8 @@ CAPTCHA_PROMPTS: dict[str, dict[str, list[str]]] = {
             "a photo of a car",
             "a photo of a bus",
             "a photo of a van",
+            "a shadow on the ground",
+            "a shadow of a vehicle on pavement",
         ],
     },
     "boat": {
@@ -454,13 +469,16 @@ def get_prompts(category: str) -> dict[str, list[str]]:
     readable = category.replace("_", " ")
     return {
         "positive": [
-            f"a photo of a {readable}",
+            f"a clear photo of a {readable}",
             f"a {readable}",
-            f"an image containing a {readable}",
+            f"an image clearly containing a {readable}",
         ],
         "negative": [
             "a photo of something else",
             "an empty photo",
             "a photo without any notable objects",
+            "a shadow on the ground",
+            "a dark silhouette on pavement",
+            "a reflection on a surface",
         ],
     }
