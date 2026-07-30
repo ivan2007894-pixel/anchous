@@ -119,6 +119,10 @@ class ImageSolveRequest(BaseModel):
         ge=0.0,
         le=1.0,
     )
+    return_annotated_image: bool = Field(
+        False,
+        description="If true, returns a base64 encoded image with red dots on selected tiles",
+    )
 
     def model_post_init(self, __context) -> None:
         if not any([self.image_url, self.image_base64, self.tile_urls, self.tile_base64]):
@@ -136,6 +140,7 @@ class ImageSolveResponse(BaseModel):
     grid: str
     solve_time_ms: float
     all_tiles: list[dict] | None = None
+    annotated_image_base64: str | None = None
 
 
 class TextSolveRequest(BaseModel):
@@ -228,6 +233,7 @@ async def solve_image_captcha(request: ImageSolveRequest):
                 tile_sources=tile_sources,
                 prompt=request.prompt,
                 threshold=request.threshold,
+                return_annotated_image=request.return_annotated_image,
             )
         else:
             # Full grid image (URL or base64)
@@ -237,6 +243,7 @@ async def solve_image_captcha(request: ImageSolveRequest):
                 prompt=request.prompt,
                 grid=request.grid,
                 threshold=request.threshold,
+                return_annotated_image=request.return_annotated_image,
             )
     except Exception as e:
         logger.error(f"Error solving image CAPTCHA: {e}", exc_info=True)
@@ -329,6 +336,7 @@ async def solve_image_captcha_upload(
     prompt: str = Form("Select all matching images", description="CAPTCHA prompt text"),
     grid: str = Form("3x3", description="Grid size: '3x3' or '4x4'"),
     threshold: float | None = Form(None, description="Confidence threshold 0.0-1.0"),
+    return_annotated_image: bool = Form(False, description="Return image with red dots"),
 ):
     """
     Solve an image grid CAPTCHA via file upload.
@@ -347,6 +355,7 @@ async def solve_image_captcha_upload(
             prompt=prompt,
             grid=grid,
             threshold=threshold,
+            return_annotated_image=return_annotated_image,
         )
     except Exception as e:
         logger.error(f"Error solving image CAPTCHA: {e}", exc_info=True)
@@ -363,6 +372,7 @@ async def solve_image_captcha_upload(
         grid=result_dict["grid"],
         solve_time_ms=round(elapsed_ms, 2),
         all_tiles=result_dict["all_tiles"],
+        annotated_image_base64=result_dict.get("annotated_image_base64"),
     )
 
 

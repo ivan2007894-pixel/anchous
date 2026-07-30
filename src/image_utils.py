@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 
 import httpx
-from PIL import Image, ImageFilter, ImageOps
+from PIL import Image, ImageDraw, ImageFilter, ImageOps
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +134,41 @@ def split_grid(
     return tiles
 
 
+def draw_annotations(
+    image: Image.Image,
+    rows: int,
+    cols: int,
+    selected_indices: list[int],
+) -> Image.Image:
+    """
+    Draw red dots in the center of selected tiles for debugging/visualization.
+    """
+    annotated = image.copy()
+    draw = ImageDraw.Draw(annotated)
+    
+    width, height = annotated.size
+    tile_w = width // cols
+    tile_h = height // rows
+    
+    # Calculate radius based on tile size (e.g., 10% of tile width)
+    radius = max(5, int(tile_w * 0.1))
+
+    for idx in selected_indices:
+        row = idx // cols
+        col = idx % cols
+        
+        # Center of the tile
+        cx = (col * tile_w) + (tile_w // 2)
+        cy = (row * tile_h) + (tile_h // 2)
+        
+        # Draw red circle
+        left_up_point = (cx - radius, cy - radius)
+        right_down_point = (cx + radius, cy + radius)
+        draw.ellipse([left_up_point, right_down_point], fill="red", outline="white", width=2)
+        
+    return annotated
+
+
 def preprocess_for_clip(
     image: Image.Image,
     target_size: int = 224,
@@ -233,6 +268,13 @@ def image_to_bytes(image: Image.Image, format: str = "PNG") -> bytes:
     buffer = io.BytesIO()
     image.save(buffer, format=format)
     return buffer.getvalue()
+
+
+def image_to_base64(image: Image.Image, format: str = "PNG") -> str:
+    """Convert PIL Image to base64 data URI."""
+    img_bytes = image_to_bytes(image, format)
+    encoded = base64.b64encode(img_bytes).decode('ascii')
+    return f"data:image/{format.lower()};base64,{encoded}"
 
 
 def save_tiles_debug(

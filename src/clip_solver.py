@@ -18,7 +18,7 @@ from .captcha_types import (
     ImageCaptchaResult,
     TileResult,
 )
-from .image_utils import load_image, split_grid, preprocess_for_clip
+from .image_utils import load_image, split_grid, preprocess_for_clip, draw_annotations, image_to_base64
 from .prompts import CAPTCHA_PROMPTS, get_prompts, resolve_prompt
 
 logger = logging.getLogger(__name__)
@@ -114,6 +114,7 @@ class CLIPSolver:
         prompt: str,
         grid: str = "3x3",
         threshold: float | None = None,
+        return_annotated_image: bool = False,
     ) -> ImageCaptchaResult:
         """
         Solve an image grid CAPTCHA.
@@ -195,6 +196,17 @@ class CLIPSolver:
 
             logger.debug(f"  {tile_result}")
 
+        annotated_image_base64 = None
+        if return_annotated_image and selected:
+            # Draw dots on the full image
+            annotated_img = draw_annotations(
+                image,
+                grid_size.rows,
+                grid_size.cols,
+                selected
+            )
+            annotated_image_base64 = image_to_base64(annotated_img)
+
         result = ImageCaptchaResult(
             captcha_type=CaptchaType.IMAGE_GRID,
             category=category,
@@ -202,6 +214,7 @@ class CLIPSolver:
             tiles=tile_results,
             selected_indices=selected,
             raw_prompt=prompt,
+            annotated_image_base64=annotated_image_base64,
         )
 
         logger.info(
@@ -240,6 +253,7 @@ class CLIPSolver:
         tile_sources: list[str | Path | bytes | Image.Image],
         prompt: str,
         threshold: float | None = None,
+        return_annotated_image: bool = False,
     ) -> ImageCaptchaResult:
         """
         Solve CAPTCHA when tiles are provided as separate images.
@@ -302,6 +316,27 @@ class CLIPSolver:
             else GridSize.GRID_1X1
         )
 
+        annotated_image_base64 = None
+        if return_annotated_image and selected:
+            # Reconstruct grid image to annotate
+            tile_w, tile_h = tiles[0].size
+            full_w = tile_w * grid_size.cols
+            full_h = tile_h * grid_size.rows
+            full_image = Image.new("RGB", (full_w, full_h))
+            
+            for i, tile in enumerate(tiles):
+                r = i // grid_size.cols
+                c = i % grid_size.cols
+                full_image.paste(tile, (c * tile_w, r * tile_h))
+                
+            annotated_img = draw_annotations(
+                full_image,
+                grid_size.rows,
+                grid_size.cols,
+                selected
+            )
+            annotated_image_base64 = image_to_base64(annotated_img)
+
         return ImageCaptchaResult(
             captcha_type=CaptchaType.IMAGE_GRID,
             category=category,
@@ -309,6 +344,7 @@ class CLIPSolver:
             tiles=tile_results,
             selected_indices=selected,
             raw_prompt=prompt,
+            annotated_image_base64=annotated_image_base64,
         )
 
     def classify_image(

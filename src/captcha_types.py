@@ -68,6 +68,7 @@ class ImageCaptchaResult:
     tiles: list[TileResult] = field(default_factory=list)
     selected_indices: list[int] = field(default_factory=list)
     raw_prompt: str = ""
+    annotated_image_base64: str | None = None
 
     @property
     def confidence_scores(self) -> list[float]:
@@ -98,6 +99,7 @@ class ImageCaptchaResult:
                 }
                 for t in self.tiles
             ],
+            "annotated_image_base64": self.annotated_image_base64,
         }
 
 
