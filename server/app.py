@@ -14,7 +14,7 @@ import time
 from contextlib import asynccontextmanager
 
 import yaml
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -99,9 +99,17 @@ app.add_middleware(
 class ImageSolveRequest(BaseModel):
     """Request body for image grid CAPTCHA solving."""
     image_url: str | None = Field(None, description="URL of the full grid image")
+    image_base64: str | None = Field(
+        None,
+        description="Base64-encoded image (with or without data URI prefix)",
+    )
     tile_urls: list[str] | None = Field(
         None,
         description="URLs of individual tiles (alternative to image_url)",
+    )
+    tile_base64: list[str] | None = Field(
+        None,
+        description="Base64-encoded tiles (alternative to tile_urls)",
     )
     prompt: str = Field(..., description="CAPTCHA prompt text, e.g. 'Select all buses'")
     grid: str = Field("3x3", description="Grid size: '3x3' or '4x4'")
@@ -113,8 +121,10 @@ class ImageSolveRequest(BaseModel):
     )
 
     def model_post_init(self, __context) -> None:
-        if not self.image_url and not self.tile_urls:
-            raise ValueError("Either 'image_url' or 'tile_urls' must be provided")
+        if not any([self.image_url, self.image_base64, self.tile_urls, self.tile_base64]):
+            raise ValueError(
+                "Provide one of: 'image_url', 'image_base64', 'tile_urls', or 'tile_base64'"
+            )
 
 
 class ImageSolveResponse(BaseModel):
@@ -130,12 +140,20 @@ class ImageSolveResponse(BaseModel):
 
 class TextSolveRequest(BaseModel):
     """Request body for text CAPTCHA solving."""
-    image_url: str = Field(..., description="URL of the text CAPTCHA image")
+    image_url: str | None = Field(None, description="URL of the text CAPTCHA image")
+    image_base64: str | None = Field(
+        None,
+        description="Base64-encoded image (with or without data URI prefix)",
+    )
     preprocess: bool = Field(True, description="Apply image preprocessing")
     allowlist: str | None = Field(
         None,
         description="Allowed characters (e.g., 'abcdefghijklmnopqrstuvwxyz0123456789')",
     )
+
+    def model_post_init(self, __context) -> None:
+        if not self.image_url and not self.image_base64:
+            raise ValueError("Provide either 'image_url' or 'image_base64'")
 
 
 class TextSolveResponse(BaseModel):
@@ -203,17 +221,19 @@ async def solve_image_captcha(request: ImageSolveRequest):
     start = time.perf_counter()
 
     try:
-        if request.tile_urls:
+        if request.tile_urls or request.tile_base64:
             # Individual tiles provided
+            tile_sources = request.tile_urls or request.tile_base64
             result = clip_solver.solve_tiles(
-                tile_sources=request.tile_urls,
+                tile_sources=tile_sources,
                 prompt=request.prompt,
                 threshold=request.threshold,
             )
         else:
-            # Full grid image
+            # Full grid image (URL or base64)
+            image_source = request.image_url or request.image_base64
             result = clip_solver.solve(
-                image_source=request.image_url,
+                image_source=image_source,
                 prompt=request.prompt,
                 grid=request.grid,
                 threshold=request.threshold,
@@ -249,8 +269,9 @@ async def solve_text_captcha(request: TextSolveRequest):
     start = time.perf_counter()
 
     try:
+        image_source = request.image_url or request.image_base64
         result = ocr_solver.solve(
-            image_source=request.image_url,
+            image_source=image_source,
             preprocess=request.preprocess,
             allowlist=request.allowlist,
         )
@@ -298,6 +319,87 @@ async def classify_image(request: ClassifyRequest):
         results={k: round(v, 4) for k, v in results.items()},
         top_category=top_category,
         top_score=round(top_score, 4),
+        solve_time_ms=round(elapsed_ms, 2),
+    )
+
+
+@app.post("/solve/image/upload", response_model=ImageSolveResponse)
+async def solve_image_captcha_upload(
+    file: UploadFile = File(..., description="Grid CAPTCHA image file"),
+    prompt: str = "Select all matching images",
+    grid: str = "3x3",
+    threshold: float | None = None,
+):
+    """
+    Solve an image grid CAPTCHA via file upload.
+
+    Upload a screenshot of the CAPTCHA grid directly.
+    """
+    if clip_solver is None:
+        raise HTTPException(status_code=503, detail="CLIP solver not loaded")
+
+    start = time.perf_counter()
+
+    try:
+        image_bytes = await file.read()
+        result = clip_solver.solve(
+            image_source=image_bytes,
+            prompt=prompt,
+            grid=grid,
+            threshold=threshold,
+        )
+    except Exception as e:
+        logger.error(f"Error solving image CAPTCHA: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+    elapsed_ms = (time.perf_counter() - start) * 1000
+    result_dict = result.to_dict()
+
+    return ImageSolveResponse(
+        selected_tiles=result_dict["selected_tiles"],
+        confidence=result_dict["confidence"],
+        avg_confidence=result_dict["avg_confidence"],
+        category=result_dict["category"],
+        grid=result_dict["grid"],
+        solve_time_ms=round(elapsed_ms, 2),
+        all_tiles=result_dict["all_tiles"],
+    )
+
+
+@app.post("/solve/text/upload", response_model=TextSolveResponse)
+async def solve_text_captcha_upload(
+    file: UploadFile = File(..., description="Text CAPTCHA image file"),
+    preprocess: bool = True,
+    allowlist: str | None = None,
+):
+    """
+    Solve a text CAPTCHA via file upload.
+
+    Upload a screenshot of the text CAPTCHA directly.
+    """
+    if ocr_solver is None:
+        raise HTTPException(status_code=503, detail="OCR solver not loaded")
+
+    start = time.perf_counter()
+
+    try:
+        image_bytes = await file.read()
+        result = ocr_solver.solve(
+            image_source=image_bytes,
+            preprocess=preprocess,
+            allowlist=allowlist,
+        )
+    except Exception as e:
+        logger.error(f"Error solving text CAPTCHA: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+    elapsed_ms = (time.perf_counter() - start) * 1000
+    result_dict = result.to_dict()
+
+    return TextSolveResponse(
+        text=result_dict["text"],
+        confidence=result_dict["confidence"],
+        alternatives=result_dict.get("alternatives"),
         solve_time_ms=round(elapsed_ms, 2),
     )
 

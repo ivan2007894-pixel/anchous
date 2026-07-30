@@ -4,6 +4,7 @@ Image processing utilities for CAPTCHA solver.
 Handles image downloading, grid splitting, preprocessing, and transformations.
 """
 
+import base64
 import io
 import logging
 from pathlib import Path
@@ -12,6 +13,24 @@ import httpx
 from PIL import Image, ImageFilter, ImageOps
 
 logger = logging.getLogger(__name__)
+
+
+def decode_base64_image(data_uri: str) -> Image.Image:
+    """
+    Decode a base64 data URI or raw base64 string to PIL Image.
+
+    Supports formats:
+        - "data:image/png;base64,iVBOR..."
+        - "iVBOR..." (raw base64)
+    """
+    if data_uri.startswith("data:"):
+        # Strip "data:image/...;base64," prefix
+        _, encoded = data_uri.split(",", 1)
+    else:
+        encoded = data_uri
+
+    image_bytes = base64.b64decode(encoded)
+    return Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
 
 async def download_image(url: str, timeout: float = 10.0) -> Image.Image:
@@ -43,10 +62,11 @@ def download_image_sync(url: str, timeout: float = 10.0) -> Image.Image:
 
 def load_image(source: str | Path | bytes | Image.Image) -> Image.Image:
     """
-    Load image from various sources: file path, URL, bytes, or PIL Image.
+    Load image from various sources: file path, URL, base64, bytes, or PIL Image.
 
     Args:
-        source: Image source — file path, URL string, raw bytes, or PIL Image
+        source: Image source — file path, URL string, base64 data URI,
+                raw bytes, or PIL Image
 
     Returns:
         PIL Image in RGB mode
@@ -61,8 +81,16 @@ def load_image(source: str | Path | bytes | Image.Image) -> Image.Image:
         return Image.open(source).convert("RGB")
 
     if isinstance(source, str):
+        # Base64 data URI
+        if source.startswith("data:"):
+            return decode_base64_image(source)
+        # Raw base64 (heuristic: no path separators, no dots at start, long enough)
+        if len(source) > 256 and "/" not in source[:20] and "." not in source[:10]:
+            return decode_base64_image(source)
+        # URL
         if source.startswith(("http://", "https://")):
             return download_image_sync(source)
+        # File path
         return Image.open(source).convert("RGB")
 
     raise ValueError(f"Unsupported image source type: {type(source)}")
