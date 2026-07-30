@@ -1,0 +1,42 @@
+# CAPTCHA Solver — Configuration
+# Copy this file and adjust for your environment
+
+# CLIP Model Settings
+clip:
+  # Model variants (accuracy vs speed):
+  #   ViT-B/32  — fastest, good accuracy (recommended for start)
+  #   ViT-B/16  — balanced
+  #   ViT-L/14  — best accuracy, slower
+  #   ViT-L/14@336px — highest resolution, best for small details
+  model: "ViT-B/32"
+
+  # Device: "cuda", "cpu", or null (auto-detect)
+  device: null
+
+  # Confidence threshold for tile selection
+  # Higher = fewer false positives, but may miss some tiles
+  # Lower = more tiles selected, but more false positives
+  # Recommended range: 0.45 — 0.60
+  threshold: 0.50
+
+# OCR Settings (for text CAPTCHAs)
+ocr:
+  # Supported languages for text recognition
+  languages:
+    - "en"
+  # Use GPU for OCR (recommended if available)
+  gpu: true
+
+# Server Settings
+server:
+  host: "0.0.0.0"
+  port: 8000
+  # Enable auto-reload for development (disable in production)
+  reload: false
+  # Number of workers (1 recommended for GPU — each worker loads the model)
+  workers: 1
+
+# Logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s | %(levelname)-7s | %(name)s | %(message)s"
