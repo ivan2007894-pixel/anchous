@@ -123,6 +123,10 @@ class ImageSolveRequest(BaseModel):
         False,
         description="If true, returns a base64 encoded image with red dots on selected tiles",
     )
+    save_annotated_image: bool = Field(
+        False,
+        description="If true, saves the annotated image to a local 'debug' folder on the server",
+    )
 
     def model_post_init(self, __context) -> None:
         if not any([self.image_url, self.image_base64, self.tile_urls, self.tile_base64]):
@@ -234,6 +238,7 @@ async def solve_image_captcha(request: ImageSolveRequest):
                 prompt=request.prompt,
                 threshold=request.threshold,
                 return_annotated_image=request.return_annotated_image,
+                save_annotated_image=request.save_annotated_image,
             )
         else:
             # Full grid image (URL or base64)
@@ -244,6 +249,7 @@ async def solve_image_captcha(request: ImageSolveRequest):
                 grid=request.grid,
                 threshold=request.threshold,
                 return_annotated_image=request.return_annotated_image,
+                save_annotated_image=request.save_annotated_image,
             )
     except Exception as e:
         logger.error(f"Error solving image CAPTCHA: {e}", exc_info=True)
@@ -337,6 +343,7 @@ async def solve_image_captcha_upload(
     grid: str = Form("3x3", description="Grid size: '3x3' or '4x4'"),
     threshold: float | None = Form(None, description="Confidence threshold 0.0-1.0"),
     return_annotated_image: bool = Form(False, description="Return image with red dots"),
+    save_annotated_image: bool = Form(False, description="Save annotated image to server debug folder"),
 ):
     """
     Solve an image grid CAPTCHA via file upload.
@@ -356,6 +363,7 @@ async def solve_image_captcha_upload(
             grid=grid,
             threshold=threshold,
             return_annotated_image=return_annotated_image,
+            save_annotated_image=save_annotated_image,
         )
     except Exception as e:
         logger.error(f"Error solving image CAPTCHA: {e}", exc_info=True)

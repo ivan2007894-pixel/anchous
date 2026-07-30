@@ -115,6 +115,7 @@ class CLIPSolver:
         grid: str = "3x3",
         threshold: float | None = None,
         return_annotated_image: bool = False,
+        save_annotated_image: bool = False,
     ) -> ImageCaptchaResult:
         """
         Solve an image grid CAPTCHA.
@@ -197,7 +198,7 @@ class CLIPSolver:
             logger.debug(f"  {tile_result}")
 
         annotated_image_base64 = None
-        if return_annotated_image and selected:
+        if (return_annotated_image or save_annotated_image) and selected:
             # Draw dots on the full image
             annotated_img = draw_annotations(
                 image,
@@ -205,7 +206,18 @@ class CLIPSolver:
                 grid_size.cols,
                 selected
             )
-            annotated_image_base64 = image_to_base64(annotated_img)
+            
+            if return_annotated_image:
+                annotated_image_base64 = image_to_base64(annotated_img)
+                
+            if save_annotated_image:
+                import time
+                debug_dir = Path("debug")
+                debug_dir.mkdir(exist_ok=True)
+                filename = f"captcha_grid_{int(time.time())}.png"
+                filepath = debug_dir / filename
+                annotated_img.save(filepath)
+                logger.info(f"Saved annotated image to {filepath.absolute()}")
 
         result = ImageCaptchaResult(
             captcha_type=CaptchaType.IMAGE_GRID,
@@ -254,6 +266,7 @@ class CLIPSolver:
         prompt: str,
         threshold: float | None = None,
         return_annotated_image: bool = False,
+        save_annotated_image: bool = False,
     ) -> ImageCaptchaResult:
         """
         Solve CAPTCHA when tiles are provided as separate images.
@@ -317,7 +330,7 @@ class CLIPSolver:
         )
 
         annotated_image_base64 = None
-        if return_annotated_image and selected:
+        if (return_annotated_image or save_annotated_image) and selected:
             # Reconstruct grid image to annotate
             tile_w, tile_h = tiles[0].size
             full_w = tile_w * grid_size.cols
@@ -335,7 +348,18 @@ class CLIPSolver:
                 grid_size.cols,
                 selected
             )
-            annotated_image_base64 = image_to_base64(annotated_img)
+            
+            if return_annotated_image:
+                annotated_image_base64 = image_to_base64(annotated_img)
+                
+            if save_annotated_image:
+                import time
+                debug_dir = Path("debug")
+                debug_dir.mkdir(exist_ok=True)
+                filename = f"captcha_tiles_{int(time.time())}.png"
+                filepath = debug_dir / filename
+                annotated_img.save(filepath)
+                logger.info(f"Saved annotated image to {filepath.absolute()}")
 
         return ImageCaptchaResult(
             captcha_type=CaptchaType.IMAGE_GRID,
