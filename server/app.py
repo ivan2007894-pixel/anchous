@@ -14,7 +14,7 @@ import time
 from contextlib import asynccontextmanager
 
 import yaml
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -326,9 +326,9 @@ async def classify_image(request: ClassifyRequest):
 @app.post("/solve/image/upload", response_model=ImageSolveResponse)
 async def solve_image_captcha_upload(
     file: UploadFile = File(..., description="Grid CAPTCHA image file"),
-    prompt: str = "Select all matching images",
-    grid: str = "3x3",
-    threshold: float | None = None,
+    prompt: str = Form("Select all matching images", description="CAPTCHA prompt text"),
+    grid: str = Form("3x3", description="Grid size: '3x3' or '4x4'"),
+    threshold: float | None = Form(None, description="Confidence threshold 0.0-1.0"),
 ):
     """
     Solve an image grid CAPTCHA via file upload.
@@ -369,8 +369,8 @@ async def solve_image_captcha_upload(
 @app.post("/solve/text/upload", response_model=TextSolveResponse)
 async def solve_text_captcha_upload(
     file: UploadFile = File(..., description="Text CAPTCHA image file"),
-    preprocess: bool = True,
-    allowlist: str | None = None,
+    preprocess: bool = Form(True, description="Apply image preprocessing"),
+    allowlist: str | None = Form(None, description="Allowed characters"),
 ):
     """
     Solve a text CAPTCHA via file upload.
